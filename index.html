@@ -283,4 +283,41 @@
             const cumMs = parseFloat(cumSecStr) * 1000;
             const prevMs = i === 0 ? 0 : parseFloat(splits[i-1]) * 1000;
             const lapMs = cumMs - prevMs;
-            csvContent += `${lane + 1},${name},${set},${i+1},${formatTime(lapMs)},${formatTime
+            csvContent += `${lane + 1},${name},${set},${i+1},${formatTime(lapMs)},${formatTime(cumMs)}\n`;
+          });
+        }
+      }
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = 'swim_results.csv'; a.click(); URL.revokeObjectURL(url);
+    }
+
+    function clearAll() {
+      // Clear and immediately rebuild fresh lanes so the screen isn't empty
+      const lanes = document.getElementById('lanes');
+      lanes.innerHTML = '';
+      swimmerTimers = []; swimmerResults = [];
+      resetLanes();
+    }
+
+    // Self-test: render lanes and verify structure
+    function runSelfTest() {
+      try {
+        resetLanes();
+        const lanesCount = document.getElementById('lanes').children.length;
+        setDiag(lanesCount > 0 ? `Self‑test passed: ${lanesCount} lane cards.` : 'Self‑test failed: no lanes.');
+      } catch (e) {
+        setDiag('Self‑test error: ' + (e && e.message));
+      }
+    }
+
+    document.getElementById('columns').addEventListener('change', applyColumns);
+    document.getElementById('compactToggle').addEventListener('change', (e)=>{
+      document.body.classList.toggle('compact', e.target.checked);
+      measureToolbar();
+    });
+
+    document.addEventListener('DOMContentLoaded', () => { resetLanes(); measureToolbar(); });
+  </script>
+</body>
+</html>
