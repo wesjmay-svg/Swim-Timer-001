@@ -4,143 +4,261 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#0b5cff">
-  <link rel="manifest" href="manifest.webmanifest">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Swim Lane Timer">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link rel="apple-touch-icon" href="icon-192.png">
   <title>Swim Lane Timer</title>
   <style>
-    body { font-family: sans-serif; padding: 20px; }
-    .lane { margin-bottom: 20px; border: 1px solid #ccc; padding: 10px; }
-    .swimmer { margin: 5px 0; }
-    button { margin: 6px 6px 6px 0; padding: 12px 14px; font-size: 16px; }
-    input[type="text"], input[type="number"] { margin: 2px 6px 2px 0; width: 160px; padding: 8px; font-size: 16px; }
-    ul.splits { margin: 6px 0 0 0; padding: 0; list-style: none; font-size: 0.95em; color: #333; }
-    .notice { color: #b00; font-weight: 600; }
+    :root { --gap: 12px; --toolbar-pad: 12px; }
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif; margin: 0; }
+
+    /* Sticky toolbar */
+    .toolbar { position: sticky; top: 0; z-index: 10; background: #fff; padding: var(--toolbar-pad); border-bottom: 1px solid #ddd; }
+    .toolbar h1 { margin: 0 0 8px 0; font-size: 20px; }
+    .controls { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+    .controls label { font-size: 14px; opacity: .85; }
+    .controls input, .controls select, .controls button { font-size: 16px; padding: 10px 12px; }
+    .controls button { border: 1px solid #ccc; background:#f7f7f7; border-radius: 8px; }
+
+    /* Lanes grid fills remaining height; scrolls internally so you don't lose the toolbar */
+    #lanesWrap { height: calc(100vh - var(--toolbar-h, 220px)); overflow: auto; padding: 12px; }
+    #lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: var(--gap); }
+
+    /* Lane card */
+    .lane { border: 1px solid #ccc; border-radius: 10px; padding: 10px; background: #fff; }
+    .lane h2 { margin: 0 0 8px 0; font-size: 18px; }
+    .swimmer { display: grid; grid-template-columns: 1fr; gap: 6px; padding: 6px; border-radius: 8px; }
+    .row { display:flex; flex-wrap: wrap; align-items:center; gap:8px; }
+    .row input[type="text"] { flex: 1 1 160px; min-width: 120px; padding:8px; }
+    .pill { font-size: 13px; background:#f2f2f2; padding:4px 8px; border-radius:999px; }
+    .btn { padding:10px 12px; font-size:16px; border:1px solid #ccc; border-radius:8px; background:#f7f7f7; }
+    ul.splits { margin: 4px 0 0 0; padding: 0; list-style: none; font-size: 14px; max-height: 120px; overflow: auto; }
+
+    /* Compact mode fits more on screen */
+    .compact .controls input, .compact .controls select, .compact .controls button { padding:6px 8px; font-size:14px; }
+    .compact #lanesWrap { height: calc(100vh - var(--toolbar-h, 180px)); }
+    .compact .lane { padding:8px; }
+    .compact .lane h2 { font-size:16px; }
+    .compact .btn { padding:8px 10px; font-size:14px; }
+    .compact .row input[type="text"] { padding:6px; }
+    .notice { color:#b00; font-weight:600; }
   </style>
 </head>
 <body>
-  <h1>Swim Lane Timer</h1>
-  <label for="interval">Interval Between Swimmers (seconds): </label>
-  <input type="number" id="interval" value="5" min="1">
-  <label for="numLanes">Number of Lanes: </label>
-  <input type="number" id="numLanes" value="5" min="1" max="10">
-  <label for="swimmersPerLane">Swimmers per Lane: </label>
-  <input type="number" id="swimmersPerLane" value="3" min="1" max="10">
-  <button onclick="resetLanes()">Apply Settings</button>
-  <button onclick="startAllTimers()">Start All Lanes</button>
-  <button onclick="stopAllTimers()">Stop All Timers</button>
-  <button onclick="downloadResults()">Download Results</button>
-  <button onclick="clearAll()">Clear All</button>
-  <label for="setNumber">Set #: </label>
-  <input type="number" id="setNumber" value="1" min="1" style="width: 60px;">
-  <button id="selfTestBtn" onclick="runSelfTest()">Run Self‑Test</button>
-  <hr>
-  <div id="lanes"></div>
-  <p id="diag" class="notice" style="display:none;"></p>
+  <div class="toolbar" id="toolbar">
+    <h1>Swim Lane Timer</h1>
+    <div class="controls">
+      <label for="interval">Interval (s)</label>
+      <input type="number" id="interval" value="5" min="1">
+
+      <label for="numLanes">Lanes</label>
+      <input type="number" id="numLanes" value="5" min="1" max="12">
+
+      <label for="swimmersPerLane">Swimmers/Lane</label>
+      <input type="number" id="swimmersPerLane" value="3" min="1" max="10">
+
+      <label for="columns">Columns</label>
+      <select id="columns">
+        <option value="auto" selected>Auto</option>
+        <option value="1">1</option>
+        <option value="2">2</option>
+        <option value="3">3</option>
+        <option value="4">4</option>
+      </select>
+
+      <label for="setNumber">Set #</label>
+      <input type="number" id="setNumber" value="1" min="1" style="width:70px">
+
+      <button class="btn" onclick="resetLanes()">Apply</button>
+      <button class="btn" onclick="startAllTimers()">Start All</button>
+      <button class="btn" onclick="stopAllTimers()">Stop All</button>
+      <button class="btn" onclick="downloadResults()">Download CSV</button>
+      <button class="btn" onclick="clearAll()">Clear All</button>
+
+      <label><input type="checkbox" id="compactToggle"> Compact</label>
+      <button class="btn" id="selfTestBtn" onclick="runSelfTest()">Self‑Test</button>
+    </div>
+  </div>
+
+  <div id="lanesWrap"><div id="lanes"></div></div>
+  <p id="diag" class="notice" style="display:none; padding: 0 12px 12px"></p>
+
   <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js')
-          .then(() => console.log('SW registered'))
-          .catch(err => console.log('SW registration failed', err));
-      });
+    // Measure toolbar height to size the lanes area to viewport height
+    function measureToolbar() {
+      const t = document.getElementById('toolbar');
+      if (t) document.documentElement.style.setProperty('--toolbar-h', t.offsetHeight + 'px');
     }
+    window.addEventListener('resize', measureToolbar);
+
     let swimmerTimers = [];
     let swimmerResults = [];
+
     function formatTime(ms) { const seconds = (ms / 1000).toFixed(1); return `${seconds}s`; }
-    function setDiag(msg) { const d = document.getElementById('diag'); d.textContent = msg; d.style.display = msg ? 'block' : 'none'; }
+
+    function setDiag(msg) {
+      const d = document.getElementById('diag');
+      d.textContent = msg; d.style.display = msg ? 'block' : 'none';
+      if (msg) console.log('[Diag]', msg);
+    }
+
+    function applyColumns() {
+      const sel = document.getElementById('columns').value;
+      const grid = document.getElementById('lanes');
+      if (sel === 'auto') {
+        grid.style.gridTemplateColumns = 'repeat(auto-fit, minmax(300px, 1fr))';
+      } else {
+        grid.style.gridTemplateColumns = `repeat(${sel}, 1fr)`;
+      }
+    }
+
     function resetLanes() {
       const lanesContainer = document.getElementById('lanes');
       lanesContainer.innerHTML = '';
       swimmerTimers = []; swimmerResults = [];
+
       const numLanes = parseInt(document.getElementById('numLanes').value);
       const swimmersPerLane = parseInt(document.getElementById('swimmersPerLane').value);
+
       for (let lane = 0; lane < numLanes; lane++) {
-        const laneDiv = document.createElement('div'); laneDiv.className = 'lane'; laneDiv.innerHTML = `<h2>Lane ${lane + 1}</h2>`;
+        const laneDiv = document.createElement('div');
+        laneDiv.className = 'lane';
+        laneDiv.innerHTML = `<h2>Lane ${lane + 1}</h2>`;
+
         swimmerTimers[lane] = []; swimmerResults[lane] = [];
+
         for (let i = 0; i < swimmersPerLane; i++) {
-          const swimmerDiv = document.createElement('div'); swimmerDiv.className = 'swimmer';
+          const swimmerDiv = document.createElement('div');
+          swimmerDiv.className = 'swimmer';
           swimmerDiv.innerHTML = `
-            <input type="text" id="name-${lane}-${i}" placeholder="Swimmer ${i + 1}" />
-            <span id="status-${lane}-${i}">: Waiting...</span>
-            <span id="laps-${lane}-${i}"> Laps: 0</span>
-            <span id="latest-${lane}-${i}"> Latest Split: N/A</span>
-            <span id="cumulative-${lane}-${i}"> Cumulative: N/A</span>
-            <button id="split-${lane}-${i}" onclick="recordSplit(${lane}, ${i})" disabled>Split</button>
-            <button id="finish-${lane}-${i}" onclick="finishSwimmer(${lane}, ${i})" disabled>Finish</button>
-            <ul id="splits-${lane}-${i}" class="splits"></ul>`;
+            <div class="row">
+              <input type="text" id="name-${lane}-${i}" placeholder="Swimmer ${i + 1}" />
+              <span id="status-${lane}-${i}" class="pill">Waiting…</span>
+              <span id="laps-${lane}-${i}" class="pill">Laps: 0</span>
+            </div>
+            <div class="row">
+              <span id="latest-${lane}-${i}" class="pill">Latest: N/A</span>
+              <span id="cumulative-${lane}-${i}" class="pill">Total: N/A</span>
+            </div>
+            <div class="row">
+              <button id="split-${lane}-${i}" class="btn" onclick="recordSplit(${lane}, ${i})" disabled>Split</button>
+              <button id="finish-${lane}-${i}" class="btn" onclick="finishSwimmer(${lane}, ${i})" disabled>Finish</button>
+            </div>
+            <ul id="splits-${lane}-${i}" class="splits"></ul>
+          `;
           laneDiv.appendChild(swimmerDiv);
+
           swimmerTimers[lane][i] = { startTime: null, intervalId: null };
           swimmerResults[lane][i] = [];
         }
         lanesContainer.appendChild(laneDiv);
       }
+      applyColumns();
+      measureToolbar();
     }
+
     function recordSplit(lane, swimmer) {
-      const now = Date.now(); const timer = swimmerTimers[lane][swimmer];
+      const now = Date.now();
+      const timer = swimmerTimers[lane][swimmer];
       if (!timer || timer.startTime === null) return;
       const elapsed = now - timer.startTime;
-      const prevCum = swimmerResults[lane][swimmer].length ? parseFloat(swimmerResults[lane][swimmer].slice(-1)[0]) * 1000 : 0;
+      const prevCum = swimmerResults[lane][swimmer].length
+        ? parseFloat(swimmerResults[lane][swimmer].slice(-1)[0]) * 1000
+        : 0;
       const splitTime = elapsed - prevCum;
       swimmerResults[lane][swimmer].push((elapsed / 1000).toFixed(1));
-      document.getElementById(`laps-${lane}-${swimmer}`).textContent = ` Laps: ${swimmerResults[lane][swimmer].length}`;
-      document.getElementById(`latest-${lane}-${swimmer}`).textContent = ` Latest Split: ${formatTime(splitTime)}`;
-      document.getElementById(`cumulative-${lane}-${swimmer}`).textContent = ` Cumulative: ${formatTime(elapsed)}`;
-      const li = document.createElement('li'); const set = document.getElementById('setNumber').value;
+
+      document.getElementById(`laps-${lane}-${swimmer}`).textContent = `Laps: ${swimmerResults[lane][swimmer].length}`;
+      document.getElementById(`latest-${lane}-${swimmer}`).textContent = `Latest: ${formatTime(splitTime)}`;
+      document.getElementById(`cumulative-${lane}-${swimmer}`).textContent = `Total: ${formatTime(elapsed)}`;
+
+      const li = document.createElement('li');
+      const set = document.getElementById('setNumber').value;
       li.textContent = `S${set} Lap ${swimmerResults[lane][swimmer].length}: ${formatTime(splitTime)} (Total: ${formatTime(elapsed)})`;
       document.getElementById(`splits-${lane}-${swimmer}`).appendChild(li);
     }
+
     function finishSwimmer(lane, swimmer) {
-      recordSplit(lane, swimmer);
+      recordSplit(lane, swimmer); // record final split
       clearInterval(swimmerTimers[lane][swimmer].intervalId);
       document.getElementById(`split-${lane}-${swimmer}`).disabled = true;
       document.getElementById(`finish-${lane}-${swimmer}`).disabled = true;
-      document.getElementById(`status-${lane}-${swimmer}`).textContent += ' (Finished)';
+      const st = document.getElementById(`status-${lane}-${swimmer}`);
+      st.textContent = 'Finished'; st.style.background = '#e6ffe6';
     }
+
     function startAllTimers() {
       const setNumber = document.getElementById('setNumber').value;
-      const header = document.createElement('h3'); header.textContent = `--- Starting Set ${setNumber} ---`;
+      const header = document.createElement('h3'); header.style.margin = '6px 0 10px';
+      header.textContent = `— Starting Set ${setNumber} —`;
       document.getElementById('lanes').prepend(header);
+
       const interval = parseInt(document.getElementById('interval').value) * 1000;
       const numLanes = parseInt(document.getElementById('numLanes').value);
       const swimmersPerLane = parseInt(document.getElementById('swimmersPerLane').value);
+
       for (let lane = 0; lane < numLanes; lane++) {
         for (let i = 0; i < swimmersPerLane; i++) {
           setTimeout(() => {
-            const now = Date.now(); swimmerTimers[lane][i].startTime = now;
+            const now = Date.now();
+            swimmerTimers[lane][i].startTime = now;
             document.getElementById(`split-${lane}-${i}`).disabled = false;
             document.getElementById(`finish-${lane}-${i}`).disabled = false;
+
             const input = document.getElementById(`name-${lane}-${i}`);
             const status = document.getElementById(`status-${lane}-${i}`);
-            function update() { const current = Date.now(); const elapsed = current - swimmerTimers[lane][i].startTime;
-              status.textContent = `: ${input.value || 'Swimmer'} Time: ${formatTime(elapsed)}`; }
-            update(); swimmerTimers[lane][i].intervalId = setInterval(update, 100);
+            function update() {
+              const current = Date.now();
+              const elapsed = current - swimmerTimers[lane][i].startTime;
+              status.textContent = `${input.value || 'Swimmer'} • ${formatTime(elapsed)}`;
+            }
+            update();
+            swimmerTimers[lane][i].intervalId = setInterval(update, 100);
           }, i * interval);
         }
       }
     }
-    function stopAllTimers() { swimmerTimers.flat().forEach(timer => timer && clearInterval(timer.intervalId)); }
+
+    function stopAllTimers() { swimmerTimers.flat().forEach(t => t && clearInterval(t.intervalId)); }
+
     function downloadResults() {
       let csvContent = 'Lane,Swimmer,Set,Lap,Lap Split,Cumulative Time\n';
       for (let lane = 0; lane < swimmerResults.length; lane++) {
-        for (let swimmer = 0; swimmer < swimmerResults[lane].length; swimmer++) {
+        for (let swimmer = 0; swimmer < (swimmerResults[lane]?.length || 0); swimmer++) {
           const name = document.getElementById(`name-${lane}-${swimmer}`).value || `Swimmer ${swimmer + 1}`;
           const splits = swimmerResults[lane][swimmer];
           splits.forEach((time, i) => {
-            const set = document.getElementById('setNumber').value; const lap = i + 1;
+            const set = document.getElementById('setNumber').value;
+            const lap = i + 1;
             const lapTime = i === 0 ? parseFloat(splits[0]) : (parseFloat(splits[i]) - parseFloat(splits[i - 1])).toFixed(1);
             const cumulative = splits[i];
-            csvContent += `${lane + 1},${name},${set},${lap},${lapTime},${cumulative}\n`; });
-        } }
-      const blob = new Blob([csvContent], { type: 'text/csv' }); const url = URL.createObjectURL(blob);
+            csvContent += `${lane + 1},${name},${set},${lap},${lapTime},${cumulative}\n`;
+          });
+        }
+      }
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
       const a = document.createElement('a'); a.href = url; a.download = 'swim_results.csv'; a.click(); URL.revokeObjectURL(url);
     }
-    function clearAll() { document.getElementById('lanes').innerHTML = ''; swimmerTimers = []; swimmerResults = []; }
-    function runSelfTest() { try { resetLanes(); const ok = document.getElementById('lanes').children.length > 0;
-      setDiag(ok ? 'Self‑test passed: lanes rendered.' : 'Self‑test failed: lanes did not render.'); } catch (e) { setDiag('Self‑test error: ' + (e && e.message)); } }
-    document.addEventListener('DOMContentLoaded', () => { resetLanes(); });
+
+    function clearAll() {
+      document.getElementById('lanes').innerHTML = '';
+      swimmerTimers = []; swimmerResults = [];
+    }
+
+    function runSelfTest() {
+      try { resetLanes(); const ok = document.getElementById('lanes').children.length > 0; setDiag(ok ? 'Self‑test passed: lanes rendered.' : 'Self‑test failed: lanes did not render.'); }
+      catch(e){ setDiag('Self‑test error: ' + (e && e.message)); }
+    }
+
+    document.getElementById('columns').addEventListener('change', applyColumns);
+    document.getElementById('compactToggle').addEventListener('change', (e)=>{
+      document.body.classList.toggle('compact', e.target.checked);
+      measureToolbar();
+    });
+
+    document.addEventListener('DOMContentLoaded', () => { resetLanes(); measureToolbar(); });
   </script>
 </body>
 </html>
