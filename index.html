@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Swim Lane Timer</title>
   <style>
-    :root { --gap: 12px; --toolbar-pad: 8px; }
+    :root { --gap: 12px; --toolbar-pad: 8px; --dock-h: 0px; }
     * { box-sizing: border-box; }
     body { font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif; margin: 0; }
 
@@ -32,8 +32,8 @@
     .set-banner{margin-left:auto;font-weight:600;color:#0b5cff;}
     .set-banner.flash{background:#e8f0ff;border-radius:6px;padding:2px 6px;display:inline-block;}
 
-    /* Lanes grid fills remaining height; scrolls internally so you don't lose the toolbar */
-    #lanesWrap { height: calc(100vh - var(--toolbar-h, 180px)); overflow: auto; padding: 10px; }
+    /* Lanes grid fills remaining height; accounts for toolbar + bottom dock */
+    #lanesWrap { height: calc(100vh - var(--toolbar-h, 180px) - var(--dock-h, 0px)); overflow: auto; padding: 10px; }
     #lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: var(--gap); }
 
     /* Lane card */
@@ -45,14 +45,23 @@
     .pill { font-size: 13px; background:#f2f2f2; padding:4px 8px; border-radius:999px; }
     .btn { padding:10px 12px; font-size:16px; border:1px solid #ccc; border-radius:8px; background:#f7f7f7; }
     ul.splits { margin: 4px 0 0 0; padding: 0; list-style: none; font-size: 14px; max-height: 120px; overflow: auto; }
+    body.race-mode ul.splits { display: none; }
 
     /* Compact mode fits more on screen */
     .compact .controls input, .compact .controls select, .compact .controls button { padding:6px 8px; font-size:14px; }
-    .compact #lanesWrap { height: calc(100vh - var(--toolbar-h, 160px)); }
+    .compact #lanesWrap { height: calc(100vh - var(--toolbar-h, 160px) - var(--dock-h, 0px)); }
     .compact .lane { padding:8px; }
     .compact .lane h2 { font-size:15px; }
     .compact .btn { padding:8px 10px; font-size:14px; }
     .compact .row input[type="text"] { padding:6px; }
+
+    /* Quick Split Dock at bottom */
+    .dock { position: sticky; bottom: 0; left: 0; right: 0; z-index: 9; background:#fff; border-top: 1px solid #ddd; padding: 6px 8px; display: flex; flex-wrap: wrap; gap: 6px; }
+    .dock[hidden] { display:none; }
+    .dock .tile { display:flex; align-items:center; gap:6px; border:1px solid #ccc; border-radius:999px; padding:6px 8px; background:#f7f7f7; }
+    .dock .lbl { font-size: 13px; font-weight: 600; }
+    .dock .btn { padding:6px 8px; font-size:14px; }
+
     .notice { color:#b00; font-weight:600; }
   </style>
 </head>
@@ -62,7 +71,7 @@
     <div class="controls">
       <!-- Setup controls (hidden in race mode) -->
       <label for="interval" class="hide-in-race">Int (s)</label>
-      <input class="hide-in-race" type="number" id="interval" value="5" min="1" />
+      <input class="hide-in-race" type="number" id="interval" value="5" min="0" />
 
       <label for="numLanes" class="hide-in-race">Lanes</label>
       <input class="hide-in-race" type="number" id="numLanes" value="3" min="1" max="12" />
@@ -96,6 +105,7 @@
   </div>
 
   <div id="lanesWrap"><div id="lanes"></div></div>
+  <div id="quickDock" class="dock" hidden></div>
   <p id="diag" class="notice" style="display:none; padding: 0 12px 12px"></p>
 
   <script>
@@ -104,7 +114,18 @@
       const t = document.getElementById('toolbar');
       if (t) document.documentElement.style.setProperty('--toolbar-h', t.offsetHeight + 'px');
     }
-    window.addEventListener('resize', measureToolbar);
+    function measureDock() {
+      const d = document.getElementById('quickDock');
+      const h = d && !d.hasAttribute('hidden') ? d.offsetHeight : 0;
+      document.documentElement.style.setProperty('--dock-h', h + 'px');
+    }
+    function showDock(show) {
+      const d = document.getElementById('quickDock');
+      if (!d) return;
+      if (show) d.removeAttribute('hidden'); else d.setAttribute('hidden', '');
+      measureDock();
+    }
+    window.addEventListener('resize', () => { measureToolbar(); measureDock(); });
 
     let swimmerTimers = []; // [{startTime, intervalId}]
     let swimmerResults = []; // cumulative seconds strings e.g. '12.3'
@@ -134,7 +155,7 @@
     }
 
     function enterRaceMode() { document.body.classList.add('race-mode'); measureToolbar(); }
-    function exitRaceMode() { document.body.classList.remove('race-mode'); measureToolbar(); }
+    function exitRaceMode() { document.body.classList.remove('race-mode'); showDock(false); measureToolbar(); }
 
     // --- Build lanes ---
     function resetLanes() {
@@ -185,9 +206,41 @@
       measureToolbar();
     }
 
+    // Build the Quick Split Dock with tiles for each active swimmer
+    function buildQuickDock() {
+      const d = document.getElementById('quickDock');
+      d.innerHTML = '';
+      const numLanes = parseInt(document.getElementById('numLanes').value);
+      const swimmersPerLane = parseInt(document.getElementById('swimmersPerLane').value);
+      for (let lane = 0; lane < numLanes; lane++) {
+        for (let i = 0; i < swimmersPerLane; i++) {
+          const activeEl = document.getElementById(`active-${lane}-${i}`);
+          if (!activeEl || !activeEl.checked) continue;
+          const tile = document.createElement('div');
+          tile.className = 'tile';
+          const label = document.createElement('span');
+          label.className = 'lbl';
+          label.textContent = `L${lane+1} S${i+1}`;
+          const splitBtn = document.createElement('button');
+          splitBtn.className = 'btn';
+          splitBtn.id = `dock-split-${lane}-${i}`;
+          splitBtn.textContent = 'Split';
+          splitBtn.onclick = () => recordSplit(lane, i);
+          const finishBtn = document.createElement('button');
+          finishBtn.className = 'btn';
+          finishBtn.id = `dock-finish-${lane}-${i}`;
+          finishBtn.textContent = 'Finish';
+          finishBtn.onclick = () => finishSwimmer(lane, i);
+          tile.append(label, splitBtn, finishBtn);
+          d.appendChild(tile);
+        }
+      }
+      measureDock();
+    }
+
     // --- Actions ---
     function recordSplit(lane, swimmer) {
-      const timer = swimmerTimers[lane]?.[swimmer];
+      const timer = swimmerTimers[lane] && swimmerTimers[lane][swimmer];
       if (!timer || timer.startTime === null) return;
       const now = Date.now();
       const elapsed = now - timer.startTime;
@@ -210,12 +263,18 @@
     function finishSwimmer(lane, swimmer) {
       // record a final split then stop updates
       recordSplit(lane, swimmer);
-      const timer = swimmerTimers[lane]?.[swimmer];
+      const timer = swimmerTimers[lane] && swimmerTimers[lane][swimmer];
       if (timer && timer.intervalId) clearInterval(timer.intervalId);
-      document.getElementById(`split-${lane}-${swimmer}`).disabled = true;
-      document.getElementById(`finish-${lane}-${swimmer}`).disabled = true;
+      const btn1 = document.getElementById(`split-${lane}-${swimmer}`);
+      const btn2 = document.getElementById(`finish-${lane}-${swimmer}`);
+      if (btn1) btn1.disabled = true;
+      if (btn2) btn2.disabled = true;
+      const d1 = document.getElementById(`dock-split-${lane}-${swimmer}`);
+      const d2 = document.getElementById(`dock-finish-${lane}-${swimmer}`);
+      if (d1) d1.disabled = true;
+      if (d2) d2.disabled = true;
       const st = document.getElementById(`status-${lane}-${swimmer}`);
-      st.textContent = 'Finished'; st.style.background = '#e6ffe6';
+      if (st) { st.textContent = 'Finished'; st.style.background = '#e6ffe6'; }
     }
 
     function startAllTimers() {
@@ -256,6 +315,9 @@
           }, i * interval);
         }
       }
+
+      buildQuickDock();
+      showDock(true);
       measureToolbar();
     }
 
@@ -266,6 +328,7 @@
           if (timer && timer.intervalId) clearInterval(timer.intervalId);
         }
       }
+      showDock(false);
     }
 
     function downloadResults() {
@@ -292,11 +355,26 @@
     function clearAll() {
       document.getElementById('lanes').innerHTML = '';
       swimmerTimers = []; swimmerResults = [];
+      showDock(false);
     }
 
+    // Self-test checks lanes render and dock builds
     function runSelfTest() {
-      try { resetLanes(); const ok = document.getElementById('lanes').children.length > 0; setDiag(ok ? 'Self‑test passed: lanes rendered.' : 'Self‑test failed: lanes did not render.'); }
-      catch(e){ setDiag('Self‑test error: ' + (e && e.message)); }
+      try {
+        resetLanes();
+        const ok1 = document.getElementById('lanes').children.length > 0;
+        document.getElementById('interval').value = 0; // immediate starts
+        enterRaceMode();
+        startAllTimers();
+        setTimeout(() => {
+          const dockCount = document.getElementById('quickDock').children.length;
+          stopAllTimers();
+          exitRaceMode();
+          setDiag((ok1 && dockCount > 0) ? `Self‑test passed: lanes=${ok1}, dock tiles=${dockCount}` : 'Self‑test failed.');
+        }, 200);
+      } catch (e) {
+        setDiag('Self‑test error: ' + (e && e.message));
+      }
     }
 
     document.getElementById('columns').addEventListener('change', applyColumns);
@@ -305,7 +383,7 @@
       measureToolbar();
     });
 
-    document.addEventListener('DOMContentLoaded', () => { resetLanes(); measureToolbar(); });
+    document.addEventListener('DOMContentLoaded', () => { resetLanes(); measureToolbar(); measureDock(); });
   </script>
 </body>
 </html>
