@@ -158,11 +158,16 @@
         swimmerTimers[lane] = []; swimmerResults[lane] = [];
 
         for (let i = 0; i < swimmersPerLane; i++) {
+        const activeEl = document.getElementById(`active-${lane}-${i}`);
+        if (!activeEl || !activeEl.checked) { continue; }
           const swimmerDiv = document.createElement('div');
           swimmerDiv.className = 'swimmer';
           swimmerDiv.innerHTML = `
             <div class="row">
               <input type="text" id="name-${lane}-${i}" placeholder="Swimmer ${i + 1}" />
+              <label class="pill" style="background:#eef;">
+                <input type="checkbox" id="active-${lane}-${i}" checked style="vertical-align:middle; margin-right:4px;"> Active
+              </label>
               <span id="status-${lane}-${i}" class="pill">Waiting…</span>
               <span id="laps-${lane}-${i}` + `" class="pill">Laps: 0</span>
             </div>
