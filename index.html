@@ -1,15 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#0b5cff">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="Swim Lane Timer">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b5cff" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Swim Lane Timer" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Swim Lane Timer</title>
   <style>
-    :root { --gap: 12px; --toolbar-pad: 10px; }
+    :root { --gap: 12px; --toolbar-pad: 8px; }
     * { box-sizing: border-box; }
     body { font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif; margin: 0; }
 
@@ -18,7 +18,7 @@
     .toolbar h1 { margin: 0 0 6px 0; font-size: 18px; }
     .controls { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
     .controls label { font-size: 13px; opacity: .85; }
-    .controls input, .controls select, .controls button { font-size: 15px; padding: 8px 10px; }
+    .controls input, .controls select, .controls button { font-size: 15px; padding: 7px 9px; }
     .controls button { border: 1px solid #ccc; background:#f7f7f7; border-radius: 8px; }
 
     /* Race mode minimises toolbar */
@@ -33,7 +33,7 @@
     .set-banner.flash{background:#e8f0ff;border-radius:6px;padding:2px 6px;display:inline-block;}
 
     /* Lanes grid fills remaining height; scrolls internally so you don't lose the toolbar */
-    #lanesWrap { height: calc(100vh - var(--toolbar-h, 200px)); overflow: auto; padding: 10px; }
+    #lanesWrap { height: calc(100vh - var(--toolbar-h, 180px)); overflow: auto; padding: 10px; }
     #lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: var(--gap); }
 
     /* Lane card */
@@ -48,7 +48,7 @@
 
     /* Compact mode fits more on screen */
     .compact .controls input, .compact .controls select, .compact .controls button { padding:6px 8px; font-size:14px; }
-    .compact #lanesWrap { height: calc(100vh - var(--toolbar-h, 170px)); }
+    .compact #lanesWrap { height: calc(100vh - var(--toolbar-h, 160px)); }
     .compact .lane { padding:8px; }
     .compact .lane h2 { font-size:15px; }
     .compact .btn { padding:8px 10px; font-size:14px; }
@@ -62,13 +62,13 @@
     <div class="controls">
       <!-- Setup controls (hidden in race mode) -->
       <label for="interval" class="hide-in-race">Int (s)</label>
-      <input class="hide-in-race" type="number" id="interval" value="5" min="1">
+      <input class="hide-in-race" type="number" id="interval" value="5" min="1" />
 
       <label for="numLanes" class="hide-in-race">Lanes</label>
-      <input class="hide-in-race" type="number" id="numLanes" value="5" min="1" max="12">
+      <input class="hide-in-race" type="number" id="numLanes" value="3" min="1" max="12" />
 
       <label for="swimmersPerLane" class="hide-in-race">Sw/Lane</label>
-      <input class="hide-in-race" type="number" id="swimmersPerLane" value="3" min="1" max="10">
+      <input class="hide-in-race" type="number" id="swimmersPerLane" value="5" min="1" max="12" />
 
       <label for="columns" class="hide-in-race">Cols</label>
       <select id="columns" class="hide-in-race">
@@ -80,7 +80,7 @@
       </select>
 
       <label for="setNumber">Set #</label>
-      <input type="number" id="setNumber" value="1" min="1" style="width:70px">
+      <input type="number" id="setNumber" value="1" min="1" style="width:70px" />
 
       <button class="btn hide-in-race" onclick="resetLanes()">Apply</button>
       <button class="btn" onclick="startAllTimers()">Start All</button>
@@ -88,7 +88,7 @@
       <button class="btn hide-in-race" onclick="downloadResults()">Download CSV</button>
       <button class="btn hide-in-race" onclick="clearAll()">Clear All</button>
 
-      <label class="hide-in-race"><input type="checkbox" id="compactToggle"> Compact</label>
+      <label class="hide-in-race"><input type="checkbox" id="compactToggle" /> Compact</label>
       <button id="selfTestBtn" class="btn hide-in-race" onclick="runSelfTest()">Self‑Test</button>
       <span id="setBanner" class="set-banner" aria-live="polite"></span>
       <button id="exitRaceBtn" class="btn" onclick="exitRaceMode()">Exit Race Mode</button>
@@ -99,15 +99,15 @@
   <p id="diag" class="notice" style="display:none; padding: 0 12px 12px"></p>
 
   <script>
-    // Measure toolbar height to size the lanes area to viewport height
+    // --- Helpers ---
     function measureToolbar() {
       const t = document.getElementById('toolbar');
       if (t) document.documentElement.style.setProperty('--toolbar-h', t.offsetHeight + 'px');
     }
     window.addEventListener('resize', measureToolbar);
 
-    let swimmerTimers = [];
-    let swimmerResults = [];
+    let swimmerTimers = []; // [{startTime, intervalId}]
+    let swimmerResults = []; // cumulative seconds strings e.g. '12.3'
 
     function formatTime(ms) {
       const totalSeconds = Math.floor(ms / 1000);
@@ -115,7 +115,7 @@
       const seconds = totalSeconds % 60;
       const hundredths = Math.floor((ms % 1000) / 10);
       return `${String(minutes).padStart(2,'0')}:${String(seconds).padStart(2,'0')}.${String(hundredths).padStart(2,'0')}`;
-    }s`; }
+    }
 
     function setDiag(msg) {
       const d = document.getElementById('diag');
@@ -133,15 +133,10 @@
       }
     }
 
-    function enterRaceMode() {
-      document.body.classList.add('race-mode');
-      measureToolbar();
-    }
-    function exitRaceMode() {
-      document.body.classList.remove('race-mode');
-      measureToolbar();
-    }
+    function enterRaceMode() { document.body.classList.add('race-mode'); measureToolbar(); }
+    function exitRaceMode() { document.body.classList.remove('race-mode'); measureToolbar(); }
 
+    // --- Build lanes ---
     function resetLanes() {
       const lanesContainer = document.getElementById('lanes');
       lanesContainer.innerHTML = '';
@@ -158,8 +153,6 @@
         swimmerTimers[lane] = []; swimmerResults[lane] = [];
 
         for (let i = 0; i < swimmersPerLane; i++) {
-        const activeEl = document.getElementById(`active-${lane}-${i}`);
-        if (!activeEl || !activeEl.checked) { continue; }
           const swimmerDiv = document.createElement('div');
           swimmerDiv.className = 'swimmer';
           swimmerDiv.innerHTML = `
@@ -192,15 +185,16 @@
       measureToolbar();
     }
 
+    // --- Actions ---
     function recordSplit(lane, swimmer) {
-      const now = Date.now();
-      const timer = swimmerTimers[lane][swimmer];
+      const timer = swimmerTimers[lane]?.[swimmer];
       if (!timer || timer.startTime === null) return;
+      const now = Date.now();
       const elapsed = now - timer.startTime;
-      const prevCum = swimmerResults[lane][swimmer].length
+      const prevCumMs = swimmerResults[lane][swimmer].length
         ? parseFloat(swimmerResults[lane][swimmer].slice(-1)[0]) * 1000
         : 0;
-      const splitTime = elapsed - prevCum;
+      const splitTime = elapsed - prevCumMs;
       swimmerResults[lane][swimmer].push((elapsed / 1000).toFixed(1));
 
       document.getElementById(`laps-${lane}-${swimmer}`).textContent = `Laps: ${swimmerResults[lane][swimmer].length}`;
@@ -214,8 +208,10 @@
     }
 
     function finishSwimmer(lane, swimmer) {
-      recordSplit(lane, swimmer); // record final split
-      clearInterval(swimmerTimers[lane][swimmer].intervalId);
+      // record a final split then stop updates
+      recordSplit(lane, swimmer);
+      const timer = swimmerTimers[lane]?.[swimmer];
+      if (timer && timer.intervalId) clearInterval(timer.intervalId);
       document.getElementById(`split-${lane}-${swimmer}`).disabled = true;
       document.getElementById(`finish-${lane}-${swimmer}`).disabled = true;
       const st = document.getElementById(`status-${lane}-${swimmer}`);
@@ -231,7 +227,6 @@
         setTimeout(()=>banner.classList.remove('flash'),800);
       }
 
-      // Enter minimal race mode automatically
       enterRaceMode();
 
       const interval = parseInt(document.getElementById('interval').value) * 1000;
@@ -240,6 +235,9 @@
 
       for (let lane = 0; lane < numLanes; lane++) {
         for (let i = 0; i < swimmersPerLane; i++) {
+          const activeEl = document.getElementById(`active-${lane}-${i}`);
+          if (!activeEl || !activeEl.checked) continue;
+
           setTimeout(() => {
             const now = Date.now();
             swimmerTimers[lane][i].startTime = now;
@@ -261,22 +259,28 @@
       measureToolbar();
     }
 
-    function stopAllTimers() { swimmerTimers.flat().forEach(t => t && clearInterval(t.intervalId)); }
+    function stopAllTimers() {
+      for (const lane of swimmerTimers) {
+        if (!lane) continue;
+        for (const timer of lane) {
+          if (timer && timer.intervalId) clearInterval(timer.intervalId);
+        }
+      }
+    }
 
     function downloadResults() {
       let csvContent = 'Lane,Swimmer,Set,Lap,Lap Split,Cumulative Time\n';
       for (let lane = 0; lane < swimmerResults.length; lane++) {
         for (let swimmer = 0; swimmer < (swimmerResults[lane]?.length || 0); swimmer++) {
-          const name = document.getElementById(`name-${lane}-${swimmer}`).value || `Swimmer ${swimmer + 1}`;
           const splits = swimmerResults[lane][swimmer];
-          splits.forEach((time, i) => {
+          if (!splits || splits.length === 0) continue; // skip inactive/unused
+          const name = document.getElementById(`name-${lane}-${swimmer}`).value || `Swimmer ${swimmer + 1}`;
+          splits.forEach((cumSecStr, i) => {
             const set = document.getElementById('setNumber').value;
-            const lap = i + 1;
-            const lapMs = i === 0 ? parseFloat(splits[0])*1000 : (parseFloat(splits[i]) - parseFloat(splits[i-1]))*1000;
-            const cumMs = parseFloat(splits[i])*1000;
-            const lapTime = formatTime(lapMs);
-            const cumulative = formatTime(cumMs);
-            csvContent += `${lane + 1},${name},${set},${lap},${lapTime},${cumulative}\n`;
+            const cumMs = parseFloat(cumSecStr) * 1000;
+            const prevMs = i === 0 ? 0 : parseFloat(splits[i-1]) * 1000;
+            const lapMs = cumMs - prevMs;
+            csvContent += `${lane + 1},${name},${set},${i+1},${formatTime(lapMs)},${formatTime(cumMs)}\n`;
           });
         }
       }
@@ -301,7 +305,6 @@
       measureToolbar();
     });
 
-    // Start in setup view, measure once built
     document.addEventListener('DOMContentLoaded', () => { resetLanes(); measureToolbar(); });
   </script>
 </body>
