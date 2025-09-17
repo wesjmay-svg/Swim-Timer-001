@@ -15,7 +15,7 @@
 
     /* Sticky toolbar */
     .toolbar { position: sticky; top: 0; z-index: 10; background: #fff; padding: var(--toolbar-pad); border-bottom: 1px solid #ddd; }
-    .toolbar h1 { margin: 0 0 8px 0; font-size: 20px; }
+    .toolbar h1 { margin: 0 0 8px 0; font-size: 20px; } .set-banner{margin-top:6px;font-weight:600;color:#0b5cff;} .set-banner.flash{background:#e8f0ff;border-radius:6px;padding:4px 8px;display:inline-block;}
     .controls { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
     .controls label { font-size: 14px; opacity: .85; }
     .controls input, .controls select, .controls button { font-size: 16px; padding: 10px 12px; }
@@ -79,6 +79,7 @@
       <label><input type="checkbox" id="compactToggle"> Compact</label>
       <button class="btn" id="selfTestBtn" onclick="runSelfTest()">Self‑Test</button>
     </div>
+    <div id="setBanner" class="set-banner" aria-live="polite"></div>
   </div>
 
   <div id="lanesWrap"><div id="lanes"></div></div>
@@ -190,9 +191,13 @@
 
     function startAllTimers() {
       const setNumber = document.getElementById('setNumber').value;
-      const header = document.createElement('h3'); header.style.margin = '6px 0 10px';
-      header.textContent = `— Starting Set ${setNumber} —`;
-      document.getElementById('lanes').prepend(header);
+      const banner = document.getElementById('setBanner');
+      if (banner) {
+        banner.textContent = `Starting Set ${setNumber}`;
+        banner.classList.add('flash');
+        setTimeout(()=>banner.classList.remove('flash'),600);
+        measureToolbar();
+      }
 
       const interval = parseInt(document.getElementById('interval').value) * 1000;
       const numLanes = parseInt(document.getElementById('numLanes').value);
