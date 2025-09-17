@@ -109,7 +109,13 @@
     let swimmerTimers = [];
     let swimmerResults = [];
 
-    function formatTime(ms) { const seconds = (ms / 1000).toFixed(1); return `${seconds}s`; }
+    function formatTime(ms) {
+      const totalSeconds = Math.floor(ms / 1000);
+      const minutes = Math.floor(totalSeconds / 60);
+      const seconds = totalSeconds % 60;
+      const hundredths = Math.floor((ms % 1000) / 10);
+      return `${String(minutes).padStart(2,'0')}:${String(seconds).padStart(2,'0')}.${String(hundredths).padStart(2,'0')}`;
+    }s`; }
 
     function setDiag(msg) {
       const d = document.getElementById('diag');
@@ -261,8 +267,10 @@
           splits.forEach((time, i) => {
             const set = document.getElementById('setNumber').value;
             const lap = i + 1;
-            const lapTime = i === 0 ? parseFloat(splits[0]) : (parseFloat(splits[i]) - parseFloat(splits[i - 1])).toFixed(1);
-            const cumulative = splits[i];
+            const lapMs = i === 0 ? parseFloat(splits[0])*1000 : (parseFloat(splits[i]) - parseFloat(splits[i-1]))*1000;
+            const cumMs = parseFloat(splits[i])*1000;
+            const lapTime = formatTime(lapMs);
+            const cumulative = formatTime(cumMs);
             csvContent += `${lane + 1},${name},${set},${lap},${lapTime},${cumulative}\n`;
           });
         }
